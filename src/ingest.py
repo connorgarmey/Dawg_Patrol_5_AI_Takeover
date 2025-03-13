@@ -102,7 +102,9 @@ def process_pdfs(data_dir):
             pdf_path = os.path.join(data_dir, file_name)
             text_by_page = extract_text_from_pdf(pdf_path)
             # basic preprocessing
-            text_by_page = preprocess_text(text_by_page)
+            #text_by_page = preprocess_text(text_by_page)
+            for page_num, text in text_by_page:
+                text = preprocess_text(text)  # Apply preprocessing to the actual text
             # iterate page by page
             for page_num, text in text_by_page:
                 # chunks: 300 characters, overlap by 50
@@ -150,7 +152,7 @@ def main():
     clear_redis_store()
     create_hnsw_index()
 
-    process_pdfs("/Users/connorgarmey/Documents/Large Scale/Practical 2/Dawg_Patrol_5_AI_Takeover/data")
+    process_pdfs("/Users/alisonpicerno/Desktop/ds 4300/Dawg_Patrol_5_AI_Takeover/data")
     print("\n---Done processing PDFs---\n")
     query_redis("What is the capital of France?")
 
