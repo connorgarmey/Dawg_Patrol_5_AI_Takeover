@@ -6,6 +6,15 @@ import numpy as np
 from redis.commands.search.query import Query
 import os
 import fitz
+import re
+
+model1 = "sentence-transformers/all-MiniLM-L6-v2"
+model2 = "sentence-transformers/all-mpnet-base-v2"
+model3 = "InstructorXL"
+embed_model = model1
+
+chunk_size=300
+overlap=50
 
 # Initialize Redis connection
 redis_client = redis.Redis(host="localhost", port=6380, db=0)
@@ -75,7 +84,7 @@ def extract_text_from_pdf(pdf_path):
 
 
 # split the text into chunks with overlap
-def split_text_into_chunks(text, chunk_size=300, overlap=50):
+def split_text_into_chunks(text, chunk_size=chunk_size, overlap=overlap):
     """Split text into chunks of approximately chunk_size words with overlap."""
     words = text.split()
     chunks = []
@@ -92,6 +101,8 @@ def process_pdfs(data_dir):
         if file_name.endswith(".pdf"):
             pdf_path = os.path.join(data_dir, file_name)
             text_by_page = extract_text_from_pdf(pdf_path)
+            # basic preprocessing
+            text_by_page = preprocess_text(text_by_page)
             # iterate page by page
             for page_num, text in text_by_page:
                 # chunks: 300 characters, overlap by 50
@@ -109,6 +120,12 @@ def process_pdfs(data_dir):
                     )
             print(f" -----> Processed {file_name}")
 
+def preprocess_text(text):
+    # remove punctuation except periods to maintain sentences
+    text = re.sub(r"[^\w\s.]", "", text)
+    # remove extra spaces, newlines, and tabs
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 def query_redis(query_text: str):
     q = (
@@ -132,7 +149,7 @@ def main():
     clear_redis_store()
     create_hnsw_index()
 
-    process_pdfs("../data/")
+    process_pdfs("/Users/connorgarmey/Documents/Large Scale/Practical 2/Dawg_Patrol_5_AI_Takeover/data")
     print("\n---Done processing PDFs---\n")
     query_redis("What is the capital of France?")
 
