@@ -7,17 +7,32 @@ from redis.commands.search.query import Query
 import os
 import fitz
 import re
+import chromadb
+
+vector_model = 'chroma'
 
 model1 = "sentence-transformers/all-MiniLM-L6-v2"
 model2 = "sentence-transformers/all-mpnet-base-v2"
 model3 = "InstructorXL"
 embed_model = model1
 
+ally = "/Users/alisonpicerno/Desktop/ds 4300/Dawg_Patrol_5_AI_Takeover/data"
+connor = "/Users/connorgarmey/Documents/Large Scale/Practical 2/Dawg_Patrol_5_AI_Takeover/data"
+data_path = connor
+
 chunk_size=300
 overlap=50
 
 # Initialize Redis connection
 redis_client = redis.Redis(host="localhost", port=6380, db=0)
+# Initialize Chroma 
+chroma_client = chromadb.PersistentClient(path="./chroma_db")  # Persistent storage
+
+# Create a collection (equivalent to Redis index)
+chroma_collection = chroma_client.get_or_create_collection(
+name="embedding_index",  
+metadata={"hnsw:space": "cosine"}  # Ensure cosine similarity
+)
 
 VECTOR_DIM = 768
 INDEX_NAME = "embedding_index"
@@ -47,6 +62,19 @@ def create_hnsw_index():
         """
     )
     print("Index created successfully.")
+
+
+def store_embedding_chroma(file: str, page: str, chunk: str, embedding: list):
+    doc_id = f"{file}_page_{page}_chunk_{chunk}"
+    
+    chroma_collection.add(
+        ids=[doc_id],
+        embeddings=[embedding],
+        metadatas=[{"file": file, "page": page, "chunk": chunk}]
+    )
+    
+    print(f"Stored embedding in ChromaDB for: {chunk}")
+
 
 
 # Generate an embedding using nomic-embed-text
@@ -113,13 +141,20 @@ def process_pdfs(data_dir):
                 for chunk_index, chunk in enumerate(chunks):
                     # embedding = calculate_embedding(chunk)
                     embedding = get_embedding(chunk)
-                    store_embedding(
-                        file=file_name,
-                        page=str(page_num),
-                        # chunk=str(chunk_index),
-                        chunk=str(chunk),
-                        embedding=embedding,
-                    )
+                    if vector_model=='redis':
+                        store_embedding(
+                            file=file_name,
+                            page=str(page_num),
+                            # chunk=str(chunk_index),
+                            chunk=str(chunk),
+                            embedding=embedding)
+                    if vector_model=='chroma':
+                        store_embedding_chroma(
+                            file=file_name,
+                            page=str(page_num),
+                            chunk=str(chunk),
+                            embedding=embedding)
+                        
             print(f" -----> Processed {file_name}")
 
 def preprocess_text(text):
@@ -130,7 +165,7 @@ def preprocess_text(text):
     
     return text
 
-def query_redis(query_text: str):
+"""def query_redis(query_text: str):
     q = (
         Query("*=>[KNN 5 @embedding $vec AS vector_distance]")
         .sort_by("vector_distance")
@@ -146,15 +181,22 @@ def query_redis(query_text: str):
 
     for doc in res.docs:
         print(f"{doc.id} \n ----> {doc.vector_distance}\n")
-
+"""
 
 def main():
-    clear_redis_store()
-    create_hnsw_index()
+    if vector_model=='redis':
+        clear_redis_store()
+        create_hnsw_index()
+    if vector_model=='chroma':
+        pass
 
-    process_pdfs("/Users/alisonpicerno/Desktop/ds 4300/Dawg_Patrol_5_AI_Takeover/data")
+
+    process_pdfs(data_path)
     print("\n---Done processing PDFs---\n")
-    query_redis("What is the capital of France?")
+    #print("Querying Redis")
+    #query_redis("What is the capital of France?")
+
+
 
 
 if __name__ == "__main__":

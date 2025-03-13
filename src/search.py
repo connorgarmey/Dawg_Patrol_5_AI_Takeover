@@ -5,11 +5,18 @@ import numpy as np
 import ollama
 from redis.commands.search.query import Query
 from redis.commands.search.field import VectorField, TextField
+import chromadb
 
+vector_model = 'chroma'
 
 # Initialize models
 # embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 redis_client = redis.StrictRedis(host="localhost", port=6380, decode_responses=True)
+# Initialize the Chroma client
+client = chromadb.Client()
+
+# Access our embedding_index collection
+chroma_collection = client.get_or_create_collection("embedding_index")
 
 VECTOR_DIM = 768
 INDEX_NAME = "embedding_index"
@@ -28,9 +35,18 @@ def get_embedding(text: str, model: str = "nomic-embed-text") -> list:
 
 
 def search_embeddings(query, top_k=3):
-
+    # Search embeddings using specified model
     query_embedding = get_embedding(query)
 
+    if vector_model == "redis":
+        return search_redis(query_embedding, top_k)
+    elif vector_model == "chroma":
+        return search_chroma(query_embedding, top_k)
+    else:
+        print("Invalid model specified:", vector_model)
+        return 
+    
+def search_redis(query_embedding, top_k):
     # Convert embedding to bytes for Redis search
     query_vector = np.array(query_embedding, dtype=np.float32).tobytes()
 
@@ -38,7 +54,6 @@ def search_embeddings(query, top_k=3):
         # Construct the vector similarity search query
         # Use a more standard RediSearch vector search syntax
         # q = Query("*").sort_by("embedding", query_vector)
-
         q = (
             Query("*=>[KNN 5 @embedding $vec AS vector_distance]")
             .sort_by("vector_distance")
@@ -73,6 +88,36 @@ def search_embeddings(query, top_k=3):
     except Exception as e:
         print(f"Search error: {e}")
         return []
+
+# Searching ChromaDB
+def search_chroma(query_embedding, top_k):
+    """Search for similar embeddings in ChromaDB."""
+    try:
+        results = chroma_collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k
+        )
+
+        top_results = [
+            {
+                "file": results["metadatas"][0][i]["file"],
+                "page": results["metadatas"][0][i]["page"],
+                "chunk": results["metadatas"][0][i]["chunk"],
+                "similarity": results["distances"][0][i],
+            }
+            for i in range(len(results["ids"][0]))
+        ]
+
+        print("\n--- ChromaDB Search Results ---")
+        for result in top_results:
+            print(f"File: {result['file']}, Page: {result['page']}, Similarity: {result['similarity']}")
+
+        return top_results
+
+    except Exception as e:
+        print(f"ChromaDB search error: {e}")
+        return []
+
 
 
 def generate_rag_response(query, context_results):
