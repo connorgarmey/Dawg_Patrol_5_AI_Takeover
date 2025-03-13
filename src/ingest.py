@@ -121,10 +121,11 @@ def process_pdfs(data_dir):
             print(f" -----> Processed {file_name}")
 
 def preprocess_text(text):
-    # remove punctuation except periods to maintain sentences
-    text = re.sub(r"[^\w\s.]", "", text)
-    # remove extra spaces, newlines, and tabs
-    text = re.sub(r"\s+", " ", text).strip()
+    if not isinstance(text, str):  
+        return ""  # Ignore images
+    text = re.sub(r"[^\w\s.]", "", text)  # Remove punctuation except periods
+    text = re.sub(r"\s+", " ", text).strip()  # Normalize whitespace
+    
     return text
 
 def query_redis(query_text: str):
