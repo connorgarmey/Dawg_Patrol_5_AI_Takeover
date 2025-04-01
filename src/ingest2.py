@@ -6,7 +6,8 @@ import os
 import fitz
 import re
 import chromadb
-
+import faiss
+import pickle
 
 # Define multiple models to test
 embedding_models = {
@@ -34,10 +35,26 @@ INDEX_NAME = "embedding_index"
 DOC_PREFIX = "doc:"
 DISTANCE_METRIC = "COSINE"
 
+faiss_index = faiss.IndexFlatL2(VECTOR_DIM)
+faiss_metadata = []
+
+
 def clear_redis_store():
     print("Clearing existing Redis store...")
     redis_client.flushdb()
     print("Redis store cleared.")
+    
+def clear_faiss_store():
+    """Reset FAISS index and metadata"""
+    global faiss_index, faiss_metadata
+    faiss_index = faiss.IndexFlatL2(VECTOR_DIM)  # Recreate FAISS index
+    faiss_metadata = []  # Reset metadata
+    print("FAISS index cleared.")
+
+def clear_chroma_store():
+    """Delete all ChromaDB collections"""
+    chroma_client.delete_collection(name=f"{INDEX_NAME}_nomic-embed")
+    print("ChromaDB collection cleared.")
 
 def create_hnsw_index():
     try:
@@ -83,6 +100,31 @@ def store_embedding_chroma(file, page, chunk, embedding, model_name):
     )
     print(f"Stored embedding in ChromaDB for: {chunk} under model: {model_name}")
 
+def store_embedding_faiss(file, page, chunk, embedding, model_name):
+    """Store embeddings in FAISS."""
+    global faiss_index, faiss_metadata
+
+    vector = np.array(embedding, dtype=np.float32).reshape(1, -1)
+    faiss_index.add(vector)  # Add to FAISS index
+
+    # Store metadata
+    faiss_metadata.append({
+        "file": file,
+        "page": page,
+        "chunk": chunk,
+        "model": model_name
+    })
+    
+    print(f"Stored embedding in FAISS for: {chunk} under model: {model_name}")
+
+def save_faiss_index():
+    print('saving')
+    """Save FAISS index and metadata."""
+    faiss.write_index(faiss_index, "faiss_index.bin")
+    with open("faiss_metadata.pkl", "wb") as f:
+        pickle.dump(faiss_metadata, f)
+    print("FAISS index and metadata saved.")
+
 def extract_text_from_pdf(pdf_path):
     doc = fitz.open(pdf_path)
     text_by_page = [(page_num, page.get_text()) for page_num, page in enumerate(doc)]
@@ -94,7 +136,13 @@ def split_text_into_chunks(text, chunk_size, overlap):
     return [" ".join(words[i: i + chunk_size]) for i in range(0, len(words), chunk_size - overlap)]
 
 # Process all PDF files in a given directory
-def process_pdfs(data_dir, chunk_size, overlap):
+def process_pdfs(data_dir, chunk_size, overlap, models):
+    global faiss_index, faiss_metadata
+    print('models')
+    if "faiss" in models:
+        faiss_index = faiss.IndexFlatL2(VECTOR_DIM)
+        faiss_metadata = []
+    
     for file_name in os.listdir(data_dir):
         if file_name.endswith(".pdf"):
             pdf_path = os.path.join(data_dir, file_name)
@@ -108,14 +156,21 @@ def process_pdfs(data_dir, chunk_size, overlap):
                 for chunk in chunks:
                     for model_name, model_path in embedding_models.items():
                         embedding = get_embedding(chunk, model_path)
-                        store_embedding(file_name, str(page_num), chunk, embedding, model_name)
-                        store_embedding_chroma(file_name, str(page_num), chunk, embedding, model_name)
+                        
+                        if "redis" in models:
+                            store_embedding(file_name, str(page_num), chunk, embedding, model_name)
+                        if "chroma" in models:
+                            store_embedding_chroma(file_name, str(page_num), chunk, embedding, model_name)
+                        if "faiss" in models:
+                            store_embedding_faiss(file_name, str(page_num), chunk, embedding, model_name)
 
             print(f"Processed {file_name}")
             print('\n')
             print('\n')
             print('\n')
             print('\n')
+    
+    save_faiss_index()
 
 def main():
     clear_redis_store()

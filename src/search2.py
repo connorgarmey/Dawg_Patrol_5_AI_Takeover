@@ -6,6 +6,8 @@ import ollama
 from redis.commands.search.query import Query
 from redis.commands.search.field import VectorField, TextField
 import chromadb
+import faiss
+import pickle
 
 vector_model = 'redis'
 
@@ -22,6 +24,9 @@ VECTOR_DIM = 768
 INDEX_NAME = "embedding_index"
 DOC_PREFIX = "doc:"
 DISTANCE_METRIC = "COSINE"
+
+faiss_index = faiss.IndexFlatL2(VECTOR_DIM)  # L2 distance metric (Euclidean)
+faiss_embeddings = []  # List to store embeddings
 
 # def cosine_similarity(vec1, vec2):
 #     """Calculate cosine similarity between two vectors."""
@@ -42,6 +47,8 @@ def search_embeddings(query, top_k=3, vector_model=vector_model):
         return search_redis(query_embedding, top_k)
     elif vector_model == "chroma":
         return search_chroma(query_embedding, top_k)
+    elif vector_model == "faiss":
+        return search_faiss(query_embedding, top_k)
     else:
         print("Invalid model specified:", vector_model)
         return 
@@ -118,6 +125,37 @@ def search_chroma(query_embedding, top_k):
         print(f"ChromaDB search error: {e}")
         return []
 
+def add_to_faiss(embeddings, metadata_list):
+    """Adds embeddings and metadata to FAISS index."""
+    global faiss_index, faiss_embeddings, faiss_metadata
+    np_embeddings = np.array(embeddings, dtype=np.float32)
+    faiss_index.add(np_embeddings)  # Add to FAISS index
+    faiss_metadata.extend(metadata_list) 
+
+
+def search_faiss(query_embedding, top_k=3):
+    query_vector = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
+
+    # Search FAISS index
+    distances, indices = faiss_index.search(query_vector, top_k)
+
+    top_results = []
+    for i in range(len(indices[0])):
+        if indices[0][i] == -1:
+            continue  # Skip invalid results
+        metadata = faiss_metadata[indices[0][i]]
+        top_results.append({
+            "file": metadata["file"],
+            "page": metadata["page"],
+            "chunk": metadata["chunk"],
+            "similarity": distances[0][i]
+        })
+
+    print("\n--- FAISS Search Results ---")
+    for result in top_results:
+        print(f"File: {result['file']}, Page: {result['page']}, Similarity: {result['similarity']}")
+
+    return top_results
 
 
 def generate_rag_response(query, context_results):
