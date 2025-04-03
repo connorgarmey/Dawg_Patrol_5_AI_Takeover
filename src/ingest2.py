@@ -8,14 +8,9 @@ import re
 import chromadb
 import faiss
 import pickle
+from sentence_transformers import SentenceTransformer
 
-# Define multiple models to test
-embedding_models = {
-    "nomic-embed": "nomic-embed-text:latest"
-    #,"llama3.2": "llama3.2:latest",
-    #"mistral": "mistral:latest"
-    
-}
+
 
 ally = "/Users/alisonpicerno/Desktop/ds 4300/Dawg_Patrol_5_AI_Takeover/data"
 connor = "/Users/connorgarmey/Documents/Large Scale/Practical 2/Dawg_Patrol_5_AI_Takeover/data"
@@ -30,7 +25,8 @@ overlap = 50
 redis_client = redis.Redis(host="localhost", port=6380, db=0)
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
-VECTOR_DIM = 768
+#VECTOR_DIM = 768 #nomic
+VECTOR_DIM = 1024 # embed-large
 INDEX_NAME = "embedding_index"
 DOC_PREFIX = "doc:"
 DISTANCE_METRIC = "COSINE"
@@ -52,9 +48,18 @@ def clear_faiss_store():
     print("FAISS index cleared.")
 
 def clear_chroma_store():
-    """Delete all ChromaDB collections"""
-    chroma_client.delete_collection(name=f"{INDEX_NAME}_nomic-embed")
-    print("ChromaDB collection cleared.")
+    try:
+        existing_collections = chroma_client.list_collections()
+        collection_names = [col.name for col in existing_collections]
+
+        if f"{INDEX_NAME}_mistral" in collection_names:
+            chroma_client.delete_collection(name=f"{INDEX_NAME}_mistral")
+            print("Chroma collection deleted.")
+        else:
+            print("Chroma collection not found, skipping deletion.")
+
+    except Exception as e:
+        print(f"Error clearing Chroma store: {e}")
 
 def create_hnsw_index():
     try:
@@ -76,6 +81,7 @@ def get_embedding(text, model_name):
     return response["embedding"]
 
 def store_embedding(file, page, chunk, embedding, model_name):
+    model_name = model_name.replace(":", "_")
     key = f"{model_name}:{file}_page_{page}_chunk_{chunk}"
     redis_client.hset(
         key,
@@ -89,6 +95,7 @@ def store_embedding(file, page, chunk, embedding, model_name):
     print(f"Stored embedding for: {chunk} under model: {model_name}")
 
 def store_embedding_chroma(file, page, chunk, embedding, model_name):
+    model_name = model_name.replace(":", "_")
     doc_id = f"{model_name}:{file}_page_{page}_chunk_{chunk}"
     chroma_collection = chroma_client.get_or_create_collection(
         name=f"{INDEX_NAME}_{model_name}", metadata={"hnsw:space": "cosine"}
@@ -101,21 +108,17 @@ def store_embedding_chroma(file, page, chunk, embedding, model_name):
     print(f"Stored embedding in ChromaDB for: {chunk} under model: {model_name}")
 
 def store_embedding_faiss(file, page, chunk, embedding, model_name):
-    """Store embeddings in FAISS."""
     global faiss_index, faiss_metadata
+    model_name = model_name.replace(":", "_")
+    vector = np.array(embedding, dtype=np.float32).reshape(1, -1)  # Ensure shape
 
-    vector = np.array(embedding, dtype=np.float32).reshape(1, -1)
-    faiss_index.add(vector)  # Add to FAISS index
-
-    # Store metadata
-    faiss_metadata.append({
-        "file": file,
-        "page": page,
-        "chunk": chunk,
-        "model": model_name
-    })
+    if vector.shape[1] != faiss_index.d:  # Check if dimensions match
+        print(f"Dimension mismatch! Expected {faiss_index.d}, got {vector.shape[1]}")
+        return
     
-    print(f"Stored embedding in FAISS for: {chunk} under model: {model_name}")
+    faiss_index.add(vector)
+    faiss_metadata.append({"file": file, "page": page, "chunk": chunk, "model": model_name})
+
 
 def save_faiss_index():
     print('saving')
@@ -136,7 +139,7 @@ def split_text_into_chunks(text, chunk_size, overlap):
     return [" ".join(words[i: i + chunk_size]) for i in range(0, len(words), chunk_size - overlap)]
 
 # Process all PDF files in a given directory
-def process_pdfs(data_dir, chunk_size, overlap, models):
+def process_pdfs(data_dir, chunk_size, overlap, models, embedding_model):
     global faiss_index, faiss_metadata
     print('models')
     if "faiss" in models:
@@ -154,15 +157,16 @@ def process_pdfs(data_dir, chunk_size, overlap, models):
                 chunks = split_text_into_chunks(text, chunk_size, overlap)
 
                 for chunk in chunks:
-                    for model_name, model_path in embedding_models.items():
-                        embedding = get_embedding(chunk, model_path)
-                        
-                        if "redis" in models:
-                            store_embedding(file_name, str(page_num), chunk, embedding, model_name)
-                        if "chroma" in models:
-                            store_embedding_chroma(file_name, str(page_num), chunk, embedding, model_name)
-                        if "faiss" in models:
-                            store_embedding_faiss(file_name, str(page_num), chunk, embedding, model_name)
+                    #for model_name, model_path in embedding_models.items():
+                
+                    embedding = get_embedding(chunk, embedding_model)
+                    
+                    if "redis" in models:
+                        store_embedding(file_name, str(page_num), chunk, embedding, embedding_model)
+                    if "chroma" in models:
+                        store_embedding_chroma(file_name, str(page_num), chunk, embedding, embedding_model)
+                    if "faiss" in models:
+                        store_embedding_faiss(file_name, str(page_num), chunk, embedding, embedding_model)
 
             print(f"Processed {file_name}")
             print('\n')
