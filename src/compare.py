@@ -16,7 +16,10 @@ data_path = ally
 top_k_values = [10] 
 models = ["chroma", "redis", "faiss"]
 query1 = "Explain the benefit of using B+ Trees in 2 sentences"
-query = "What is the final state of an AVL tree with the numbers 27, 23, and 21"
+query2 = "What is the final state of an AVL tree with the numbers 27, 23, and 21"
+query3 = "How was the battle of Gettysburg won?"
+query4 = "Me fi do that and why should it be said?"
+query = "What are the four components of ACID compliance?"
 
 # Store results in a list
 benchmark_results = []
@@ -101,6 +104,7 @@ for chunk_size in chunk_sizes:
     for ov in overlap:
         for embed_model in embedding_models:
             # Re-run ingestion for each chunk size
+            
             print(f"\n--- Ingesting PDFs with chunk_size={chunk_size}, overlap={overlap} ---")
             if "redis" in models:
                 clear_redis_store()  # Clear Redis only if using Redis
@@ -114,7 +118,7 @@ for chunk_size in chunk_sizes:
                 
             create_hnsw_index()
             process_pdfs(data_path, chunk_size=chunk_size, overlap=ov, models=models, embedding_model=embed_model)  
-
+            
 
             for model in models:
                 for k in top_k_values:
@@ -128,4 +132,4 @@ df_results = pd.DataFrame(benchmark_results)
 print(df_results)
 
 # Save results to CSV for later use
-df_results.to_csv("benchmark_results_snowflake500.csv", index=False)
+df_results.to_csv("benchmark_results_gettysburg200.csv", index=False)
