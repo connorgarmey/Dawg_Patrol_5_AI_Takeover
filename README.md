@@ -1,3 +1,6 @@
+Goal:
+-----
+Compare the performance of three popular vector databases (Redis, Chroma, and FAISS) for search over PDF documents using different embedding models and chunking strategies.
 
 Installation:
 -------------
@@ -39,8 +42,8 @@ The results include the following fields:
 - Memory usage
 - Generated model response
 
-Embedding Models:
+Embedding Models to Test:
 -----------------
-- nomic-embed-text
+- nomic-embed-text:latest
 - mxbai-embed-large
 - snowflake-arctic-embed
