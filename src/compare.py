@@ -4,8 +4,6 @@ import pandas as pd
 from search2 import get_embedding, search_chroma, search_redis, generate_rag_response, search_embeddings, search_faiss
 from ingest2 import clear_redis_store, create_hnsw_index, process_pdfs, clear_chroma_store, clear_faiss_store
 import os
-
-
 import pickle 
 
 ally = "/Users/alisonpicerno/Desktop/ds 4300/Dawg_Patrol_5_AI_Takeover/data"
@@ -13,7 +11,7 @@ connor = "/Users/connorgarmey/Documents/Large Scale/Practical 2/Dawg_Patrol_5_AI
 data_path = ally
 
 # Define different chunk sizes and models
-top_k_values = [10] 
+top_k_values = [2,5,10] 
 models = ["chroma", "redis", "faiss"]
 query1 = "Explain the benefit of using B+ Trees in 2 sentences"
 query2 = "What is the final state of an AVL tree with the numbers 27, 23, and 21"
@@ -23,18 +21,10 @@ query = "What are the four components of ACID compliance?"
 
 # Store results in a list
 benchmark_results = []
-chunk_sizes = [500]
+chunk_sizes = [200, 500]
 overlap = [0, 10, 50]
  
-# Define multiple models to test 
-'''
-embedding_models = {
-    #"snowflake" : "snowflake-arctic-embed"
-    "mxbai" : "mxbai-embed-large"
-    #"nomic-embed": "nomic-embed-text:latest"
-}
-'''
-
+# Define which models to test 
 embedding_models = ["snowflake-arctic-embed"]
 
 # Function to get memory usage in MB
@@ -95,11 +85,6 @@ def benchmark_search(query, model="faiss", k_size=3):
 
     return results
 
-
-
-
-
-
 for chunk_size in chunk_sizes:
     for ov in overlap:
         for embed_model in embedding_models:
@@ -132,4 +117,4 @@ df_results = pd.DataFrame(benchmark_results)
 print(df_results)
 
 # Save results to CSV for later use
-df_results.to_csv("benchmark_results_gettysburg200.csv", index=False)
+df_results.to_csv("benchmark_results.csv", index=False)
