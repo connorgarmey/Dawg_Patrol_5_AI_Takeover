@@ -9,7 +9,7 @@ Installation:
 - pip install faiss-cpu
 - pip install psutil
 
-4. Start Redis-stack server if using Redis as a vector store:
+4. Start Redis-stack server if using Redis as a vector store
 
 5. Start Ollama
 
@@ -41,7 +41,6 @@ The results include the following fields:
 
 Embedding Models:
 -----------------
-- nomic-embed-text: Converts text into high-dimensional vectors for semantic search and ML tasks.
-- mxbai-embed-large: General-purpose embedding model trained for multilingual and domain-agnostic applications.
-- snowflake-arctic-embed: Embedding model optimised for enterprise and tabular text tasks, developed by Snowflake.
-
+- nomic-embed-text
+- mxbai-embed-large
+- snowflake-arctic-embed
