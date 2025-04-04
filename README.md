@@ -4,14 +4,14 @@ Installation:
 1. Clone the repository
 
 2. Install dependencies:
-  pip install chromadb
-  pip install redis
-  pip install faiss-cpu
-  pip install psutil
+- pip install chromadb
+- pip install redis
+- pip install faiss-cpu
+- pip install psutil
 
-3. Start Redis-stack server if using Redis as a vector store:
+4. Start Redis-stack server if using Redis as a vector store:
 
-4. Start Ollama
+5. Start Ollama
 
 
 How to Use:
