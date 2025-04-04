@@ -25,6 +25,9 @@ chunk_sizes = [200, 500]
 overlap = [0, 10, 50]
  
 # Define which models to test 
+# Define which models to test; other models tested include 
+# nomic-embed-text:latest
+# mxbai-embed-large
 embedding_models = ["snowflake-arctic-embed"]
 
 # Function to get memory usage in MB
